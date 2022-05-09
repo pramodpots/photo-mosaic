@@ -32,10 +32,6 @@ void openmp_begin(const Image *input_image) {
     omp_output_image.data = (unsigned char *)malloc(input_image->width * input_image->height * input_image->channels * sizeof(unsigned char));
 }
 void openmp_stage1() {
-
-    //int n;
-
-
     // Reset sum memory to 0
     memset(omp_mosaic_sum, 0, omp_TILES_X * omp_TILES_Y * omp_input_image.channels * sizeof(unsigned long long));
     // Sum pixel data within each tile
