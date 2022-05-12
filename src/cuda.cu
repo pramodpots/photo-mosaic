@@ -118,21 +118,26 @@ void cuda_stage1() {
 
 __global__ void compact_mosaic(unsigned char* d_mosaic_value, unsigned long long* d_mosaic_sum, unsigned long long* d_global_pixel_sum, unsigned int cuda_input_image_channels) {
     int index = blockDim.x * blockIdx.x + threadIdx.x;
-    d_mosaic_value[index + 0] = (unsigned char)(d_mosaic_sum[index + 0] / TILE_PIXELS);
-    d_mosaic_value[index + 1] = (unsigned char)(d_mosaic_sum[index + 1] / TILE_PIXELS);
-    d_mosaic_value[index + 2] = (unsigned char)(d_mosaic_sum[index + 2] / TILE_PIXELS);
+    d_mosaic_value[index] = (unsigned char)(d_mosaic_sum[index] / TILE_PIXELS);
+    //d_mosaic_value[index + 1] = (unsigned char)(d_mosaic_sum[index + 1] / TILE_PIXELS);
+    //d_mosaic_value[index + 2] = (unsigned char)(d_mosaic_sum[index + 2] / TILE_PIXELS);
 
-    d_global_pixel_sum[0] += d_mosaic_value[index + 0];
-    d_global_pixel_sum[1] += d_mosaic_value[index + 1];
-    d_global_pixel_sum[2] += d_mosaic_value[index + 2];
+    atomicAdd(&d_global_pixel_sum[index % cuda_input_image_channels], d_mosaic_value[index]);
+    //atomicAdd(&d_global_pixel_sum[index + 1], d_mosaic_value[index + 1]);
+    //atomicAdd(&d_global_pixel_sum[index + 2], d_mosaic_value[index + 2]);
+    //d_global_pixel_sum[0] += d_mosaic_value[index + 0];
+   // d_global_pixel_sum[1] += d_mosaic_value[index + 1];
+   // d_global_pixel_sum[2] += d_mosaic_value[index + 2];
 }
 
 
 void cuda_stage2(unsigned char* output_global_average) {
 
+    long long int total_pixels = cuda_TILES_X * cuda_TILES_Y * cuda_input_image_channels;
+
     
-    dim3 threadsPerBlock(TILE_SIZE * TILE_SIZE, 1, 1);  // 32 x 32
-    dim3 blocksPerGrid((cuda_TILES_X * cuda_TILES_Y) / (TILE_SIZE * TILE_SIZE), 1, 1);
+    dim3 blocksPerGrid(total_pixels / (TILE_SIZE * TILE_SIZE), 1, 1);
+    dim3 threadsPerBlock(TILE_SIZE * TILE_SIZE, 1, 1);  // 32 x 32 ==> 1024
 
     compact_mosaic << <blocksPerGrid, threadsPerBlock >> > (d_mosaic_value, d_mosaic_sum, d_global_pixel_sum, cuda_input_image_channels);
     /* wait for all threads to complete */
@@ -191,8 +196,10 @@ __global__ void cuda_broadcast(unsigned char* d_output_image_data, unsigned char
     d_output_image_data[tile_offset + pixel_offset + 2] = d_mosaic_value[tile_index + 2];
 }
 void cuda_stage3() {
-    dim3 threadsPerBlock(TILE_SIZE * TILE_SIZE, 1, 1);  // 32 x 32
-    dim3 blocksPerGrid((cuda_TILES_X * cuda_TILES_Y) / (TILE_SIZE * TILE_SIZE), 1, 1);
+    dim3 blocksPerGrid(cuda_TILES_X, cuda_TILES_Y);
+    dim3 threadsPerBlock(TILE_SIZE, TILE_SIZE);  // 32 x 32
+    //dim3 threadsPerBlock(TILE_SIZE * TILE_SIZE, 1, 1);  // 32 x 32
+    //dim3 blocksPerGrid((cuda_TILES_X * cuda_TILES_Y) / (TILE_SIZE * TILE_SIZE), 1, 1);
 
     cuda_broadcast << <blocksPerGrid, threadsPerBlock >> > (d_output_image_data, d_mosaic_value, cuda_TILES_X, cuda_TILES_Y, cuda_input_image_width, cuda_input_image_height, cuda_input_image_channels);
     /* wait for all threads to complete */
