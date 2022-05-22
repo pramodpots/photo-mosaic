@@ -62,7 +62,36 @@ void openmp_stage1() {
 }
 void openmp_stage2(unsigned char* output_global_average) {
     unsigned long long r = 0, g = 0, b = 0;
-    
+    //int t_x, t_y, p_x, p_y, tile_index, tile_offset, pixel_offset;
+    //unsigned long long whole_image_sum[4] = { 0, 0, 0, 0 };
+    //#pragma omp parallel for  schedule(static,32) private(t_x, t_y, p_x, p_y, tile_index, tile_offset, pixel_offset)
+    //for (t_y = 0; t_y < omp_TILES_Y; ++t_y) {
+    //    for (t_x = 0; t_x < omp_TILES_X; ++t_x) {
+    //        tile_index = (t_y * omp_TILES_X + t_x) * omp_input_image.channels;
+    //        //printf("t_x,y (%d, %d) tile_index %d\n", t_x, t_y, tile_index);
+    //        for (int ch = 0; ch < omp_input_image.channels; ++ch) {
+    //            omp_mosaic_value[tile_index + ch] = (unsigned char)(omp_mosaic_sum[tile_index + ch] / TILE_PIXELS);  // Integer division is fine here
+    //            whole_image_sum[ch] += omp_mosaic_value[tile_index + ch];
+    //        }
+    //    }
+    //}
+    //for (int ch = 0; ch < omp_input_image.channels; ++ch) {
+    //    output_global_average[ch] = (unsigned char)(whole_image_sum[ch] / (omp_TILES_X * omp_TILES_Y));
+    //}
+
+    //int t;
+    //unsigned long long whole_image_sum[4] = { 0, 0, 0, 0 };
+    //#pragma omp parallel for private(t) schedule(static,32) reduction(+: r, g, b) // shared(omp_mosaic_value, omp_mosaic_sum) 
+    //for (t = 0; t < omp_TILES_X * omp_TILES_Y; ++t) {
+    //    for (int ch = 0; ch < CHANNELS; ++ch) {
+    //        omp_mosaic_value[t * CHANNELS + ch] = (unsigned char)(omp_mosaic_sum[t * CHANNELS + ch] / TILE_PIXELS);
+    //        whole_image_sum[ch] += omp_mosaic_value[t * CHANNELS + ch];
+    //    }
+    //}
+    //for (int ch = 0; ch < CHANNELS; ++ch) {
+    //    output_global_average[ch] = (unsigned char)(whole_image_sum[ch] / (omp_TILES_X * omp_TILES_Y));
+    //}
+
     int t;
     #pragma omp parallel for private(t) schedule(static,32) reduction(+: r, g, b) // shared(omp_mosaic_value, omp_mosaic_sum) 
     for (t = 0; t < omp_TILES_X * omp_TILES_Y * CHANNELS; ++t) {
