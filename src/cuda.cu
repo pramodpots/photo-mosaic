@@ -333,34 +333,37 @@ void cuda_stage2(unsigned char* output_global_average) {
 }
 
 __global__ void cuda_broadcast(unsigned char* d_output_image_data, unsigned char* d_mosaic_value, unsigned int cuda_TILES_X, unsigned int cuda_TILES_Y, unsigned int cuda_input_image_width, unsigned int cuda_input_image_height, unsigned int cuda_input_image_channels) {
-    //int t_x = threadIdx.x + blockIdx.x * blockDim.x;
-    //int t_y = threadIdx.y + blockIdx.y * blockDim.y;
-    //int offset = t_x + t_y * blockDim.x * gridDim.x;
 
-    //const unsigned int tile_index = (t_y * cuda_TILES_X + t_x) * CHANNELS;
-    //const unsigned int tile_offset = (t_y * cuda_TILES_Y * TILE_SIZE * TILE_SIZE + t_x * TILE_SIZE) * CHANNELS;
-    //const unsigned char pixel_2 = d_input_image_data[offset];
-    //atomicAdd(&d_mosaic_sum[tile_index + 0], d_input_image_data[offset + 0]);
-    //atomicAdd(&d_mosaic_sum[tile_index + 1], d_input_image_data[offset + 1]);
-    //atomicAdd(&d_mosaic_sum[tile_index + 2], d_input_image_data[offset + 2]);
+    int x = threadIdx.x + blockIdx.x * blockDim.x;
+    int y = threadIdx.y + blockIdx.y * blockDim.y;
+    int global_idx = x + y * blockDim.x * gridDim.x;
+    int gbl_pixel_idx = global_idx * CHANNELS;
+    int tile_index = (blockIdx.y * gridDim.x + blockIdx.x) * CHANNELS;
 
-    int t_x = blockIdx.x;
-    int t_y = blockIdx.y;
-    int p_x = threadIdx.x;
-    int p_y = threadIdx.y;
+    d_output_image_data[gbl_pixel_idx + 0] = d_mosaic_value[tile_index + 0];
+    d_output_image_data[gbl_pixel_idx + 1] = d_mosaic_value[tile_index + 1];
+    d_output_image_data[gbl_pixel_idx + 2] = d_mosaic_value[tile_index + 2];
 
-    //int offset = t_x + t_y * blockDim.x * gridDim.x;
 
-    const unsigned int tile_index = (t_y * cuda_TILES_X + t_x) * CHANNELS;
-    const unsigned int tile_offset = (t_y * cuda_TILES_X * TILE_SIZE * TILE_SIZE + t_x * TILE_SIZE) * CHANNELS;
+    /*int x = threadIdx.x + blockIdx.x * blockDim.x;
+    int y = threadIdx.y + blockIdx.y * blockDim.y;
+    int global_idx = x + y * blockDim.x * gridDim.x;*/
+    //int gbl_pixel_idx = global_idx * CHANNELS;
+    //int tile_index = blockIdx.y * (gridDim.x-1) + blockIdx.x;
+    /*int tile_index = (blockIdx.y * (gridDim.x / CHANNELS) + (int)(blockIdx.x / CHANNELS)) * CHANNELS;
+    d_output_image_data[global_idx] = d_mosaic_value[tile_index + (global_idx %3)];*/
+    //d_output_image_data[gbl_pixel_idx + 1] = d_mosaic_value[tile_index + 1];
+    //d_output_image_data[gbl_pixel_idx + 2] = d_mosaic_value[tile_index + 2];
+    //if (blockIdx.x == 23 && blockIdx.y == 7) { //(threadIdx.x == 31 && threadIdx.y == 31) {
+        //printf("thread_id (%d,%d) block_id (%d,%d) blockDim (%d,%d) gridDim (%d,%d) thread_x_y (%d,%d) global_idx %2d  tile_index %2d local_idx %d\n",
+            //threadIdx.x, threadIdx.y, blockIdx.x, blockIdx.y, blockDim.x, blockDim.y, gridDim.x, gridDim.y, x, y, pixel_idx, local_idx, tile_index);
 
-    const unsigned int pixel_offset = (p_y * cuda_input_image_width + p_x) * CHANNELS;
-
-    d_output_image_data[tile_offset + pixel_offset + 0] = d_mosaic_value[tile_index + 0];
-    d_output_image_data[tile_offset + pixel_offset + 1] = d_mosaic_value[tile_index + 1];
-    d_output_image_data[tile_offset + pixel_offset + 2] = d_mosaic_value[tile_index + 2];
+        //printf("thread_id (%d,%d) block_id (%d,%d) blockDim (%d,%d) gridDim (%d,%d) x,y(%d, %d) tile_index %d global_idx %d \n",
+            //threadIdx.x, threadIdx.y, blockIdx.x, blockIdx.y, blockDim.x, blockDim.y, x, y, gridDim.x, gridDim.y, tile_index, global_idx);
+    //}
 }
 void cuda_stage3() {
+    //dim3 blocksPerGrid(cuda_TILES_X * CHANNELS, cuda_TILES_Y);
     dim3 blocksPerGrid(cuda_TILES_X, cuda_TILES_Y);
     dim3 threadsPerBlock(TILE_SIZE, TILE_SIZE);  // 32 x 32
     //dim3 threadsPerBlock(TILE_SIZE * TILE_SIZE, 1, 1);  // 32 x 32
@@ -369,7 +372,7 @@ void cuda_stage3() {
     cuda_broadcast << <blocksPerGrid, threadsPerBlock >> > (d_output_image_data, d_mosaic_value, cuda_TILES_X, cuda_TILES_Y, cuda_input_image_width, cuda_input_image_height, cuda_input_image_channels);
     /* wait for all threads to complete */
     //cudaThreadSynchronize();
-    cudaDeviceSynchronize();
+    //cudaDeviceSynchronize();
     // Optionally during development call the skip function with the correct inputs to skip this stage
     // skip_broadcast(input_image, compact_mosaic, output_image);
 
