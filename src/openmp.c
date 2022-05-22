@@ -36,12 +36,14 @@ void openmp_stage1() {
     // declare required variables
     int t_x, t_y, p_x, p_y, tile_index, tile_offset, pixel_offset;
     #pragma omp parallel for shared(omp_mosaic_sum) private(t_x, t_y, p_x, p_y, tile_index, tile_offset, pixel_offset)
-    for (t_x = 0; t_x < omp_TILES_X; ++t_x) {
-        for (t_y = 0; t_y < omp_TILES_Y; ++t_y) {
+    for (t_y = 0; t_y < omp_TILES_Y; ++t_y) {
+        for (t_x = 0; t_x < omp_TILES_X; ++t_x) {
+        
             tile_index = (t_y * omp_TILES_X + t_x) * omp_input_image.channels;
             tile_offset = (t_y * omp_TILES_X * TILE_SIZE * TILE_SIZE + t_x * TILE_SIZE) * omp_input_image.channels;
-            for (p_x = 0; p_x < TILE_SIZE; ++p_x) {
-                for (p_y = 0; p_y < TILE_SIZE; ++p_y) {
+            for (p_y = 0; p_y < TILE_SIZE; ++p_y) {
+                for (p_x = 0; p_x < TILE_SIZE; ++p_x) {
+                
                     // For each colour channel
                     pixel_offset = (p_y * omp_input_image.width + p_x) * omp_input_image.channels;
                     // loop unrolling 
@@ -88,17 +90,22 @@ void openmp_stage3() {
     // For each tile
     int t_x, t_y, p_x, p_y, tile_index, tile_offset, pixel_offset;
     #pragma omp parallel for private(t_x, t_y, p_x, p_y, tile_index, tile_offset, pixel_offset) 
-    for (t_x = 0; t_x < omp_TILES_X; ++t_x) {
-        for (t_y = 0; t_y < omp_TILES_Y; ++t_y) {
+    for (t_y = 0; t_y < omp_TILES_Y; ++t_y) {
+        for (t_x = 0; t_x < omp_TILES_X; ++t_x) {
+        
             tile_index = (t_y * omp_TILES_X + t_x) * omp_input_image.channels;
             tile_offset = (t_y * omp_TILES_X * TILE_SIZE * TILE_SIZE + t_x * TILE_SIZE) * omp_input_image.channels;
             
             // For each pixel within the tile
-            for (p_x = 0; p_x < TILE_SIZE; ++p_x) {
-                for (p_y = 0; p_y < TILE_SIZE; ++p_y) {
+            for (p_y = 0; p_y < TILE_SIZE; ++p_y) {
+                for (p_x = 0; p_x < TILE_SIZE; ++p_x) {
+                
                     const unsigned int pixel_offset = (p_y * omp_input_image.width + p_x) * omp_input_image.channels;
                     // Copy whole pixel
-                    memcpy(omp_output_image.data + tile_offset + pixel_offset, omp_mosaic_value + tile_index, omp_input_image.channels);
+                    //memcpy(omp_output_image.data + tile_offset + pixel_offset, omp_mosaic_value + tile_index, omp_input_image.channels);
+                    omp_output_image.data[tile_offset + pixel_offset + 0] = omp_mosaic_value[tile_index + 0];
+                    omp_output_image.data[tile_offset + pixel_offset + 1] = omp_mosaic_value[tile_index + 1];
+                    omp_output_image.data[tile_offset + pixel_offset + 2] = omp_mosaic_value[tile_index + 2];
                 }
             }
         }
