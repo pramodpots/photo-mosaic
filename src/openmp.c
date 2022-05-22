@@ -19,7 +19,7 @@ void openmp_begin(const Image *input_image) {
     // Allocate buffer for calculating the sum of each tile mosaic
     omp_mosaic_sum = (unsigned long long*)malloc(omp_TILES_X * omp_TILES_Y * input_image->channels * sizeof(unsigned long long));
     // Set values initially to 0
-    memset(omp_mosaic_sum, 0, omp_TILES_X * omp_TILES_Y * omp_input_image.channels * sizeof(unsigned long long));
+    memset(omp_mosaic_sum, 0, omp_TILES_X * omp_TILES_Y * input_image->channels * sizeof(unsigned long long));
     // Allocate buffer for storing the output pixel value of each tile
     omp_mosaic_value = (unsigned char*)malloc(omp_TILES_X * omp_TILES_Y * input_image->channels * sizeof(unsigned char));
     
@@ -55,7 +55,7 @@ void openmp_stage1() {
 
 #ifdef VALIDATION
     // TODO: Uncomment and call the validation function with the correct inputs
-    // validate_tile_sum(&input_image, mosaic_sum);
+    validate_tile_sum(&omp_input_image, omp_mosaic_sum);
 #endif
 }
 void openmp_stage2(unsigned char* output_global_average) {
