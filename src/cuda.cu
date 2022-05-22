@@ -163,32 +163,85 @@ void cuda_stage1() {
 }
 
 __global__ void compact_mosaic(unsigned char* d_mosaic_value, unsigned long long* d_mosaic_sum, unsigned long long* d_global_pixel_sum, unsigned int cuda_input_image_channels) {
-    int index = blockDim.x * blockIdx.x + threadIdx.x;
-    d_mosaic_value[index] = (unsigned char)(d_mosaic_sum[index] / TILE_PIXELS);
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    //__shared__ unsigned long long sm[3];
+    //sm[0] = 0;
+    //sm[1] = 0;
+    //sm[2] = 0;
+    d_mosaic_value[idx] = (unsigned char)(d_mosaic_sum[idx] / TILE_PIXELS);
+    //__syncthreads();
+
+    //sm[idx % 3] += d_mosaic_value[idx];
+
+    //__syncthreads();
+    //if (threadIdx.x == 0) {
+    //    atomicAdd(&d_global_pixel_sum[idx % CHANNELS], sm[idx % CHANNELS]);
+    //}
     //d_mosaic_value[index + 1] = (unsigned char)(d_mosaic_sum[index + 1] / TILE_PIXELS);
     //d_mosaic_value[index + 2] = (unsigned char)(d_mosaic_sum[index + 2] / TILE_PIXELS);
 
-    atomicAdd(&d_global_pixel_sum[index % CHANNELS], d_mosaic_value[index]);
+    //atomicAdd(&d_global_pixel_sum[idx % CHANNELS], d_mosaic_value[idx]);
+    
+    
     //atomicAdd(&d_global_pixel_sum[index + 1], d_mosaic_value[index + 1]);
     //atomicAdd(&d_global_pixel_sum[index + 2], d_mosaic_value[index + 2]);
     //d_global_pixel_sum[0] += d_mosaic_value[index + 0];
    // d_global_pixel_sum[1] += d_mosaic_value[index + 1];
    // d_global_pixel_sum[2] += d_mosaic_value[index + 2];
+
+    //printf("idx %d\n", idx);
 }
 
+__global__ void calculate_global_sum(unsigned char* d_mosaic_value, unsigned long long* d_global_pixel_sum) {
+    extern __shared__ unsigned long long sm[];
+    //extern __shared__ unsigned long long sm2[];
+    int idx = threadIdx.x;
+    int offset_idx = threadIdx.x + blockIdx.x * blockDim.x;
+
+    //printf("threadIdx.x %2d blockIdx.x %2d blockDim.x%2d idx %2d\n", threadIdx.x, blockIdx.x, blockDim.x, idx);
+    sm[idx * CHANNELS + 0] = d_mosaic_value[offset_idx * CHANNELS + 0];
+    sm[idx * CHANNELS + 1] = d_mosaic_value[offset_idx * CHANNELS + 1];
+    sm[idx * CHANNELS + 2] = d_mosaic_value[offset_idx * CHANNELS + 2];
+    __syncthreads();
+
+    for (unsigned int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+        if (threadIdx.x < stride) {
+            sm[idx * CHANNELS + 0] += sm[(idx + stride) * CHANNELS + 0];
+            sm[idx * CHANNELS + 1] += sm[(idx + stride) * CHANNELS + 1];
+            sm[idx * CHANNELS + 2] += sm[(idx + stride) * CHANNELS + 2];
+        }
+        __syncthreads();
+    }
+
+    if (threadIdx.x == 0) {
+        atomicAdd(&d_global_pixel_sum[0], sm[0]);
+        atomicAdd(&d_global_pixel_sum[1], sm[1]);
+        atomicAdd(&d_global_pixel_sum[2], sm[2]);
+    }
+
+    //printf("threadIdx.x %d  idx %d, idx(mod)3 %d\n", threadIdx.x, idx, idx%3);
+}
 
 void cuda_stage2(unsigned char* output_global_average) {
 
-    long long int total_pixels = cuda_TILES_X * cuda_TILES_Y * CHANNELS;
+    long long int total_pixels = cuda_TILES_X * cuda_TILES_Y * CHANNELS;  // compact pixels
 
-    
-    dim3 blocksPerGrid(total_pixels / (TILE_SIZE * TILE_SIZE), 1, 1);
-    dim3 threadsPerBlock(TILE_SIZE * TILE_SIZE, 1, 1);  // 32 x 32 ==> 1024
+    //printf("total_pixels new %d\n", total_pixels);
+    dim3 blocksPerGrid(total_pixels / TILE_SIZE, 1, 1);
+    dim3 threadsPerBlock(TILE_SIZE, 1, 1);  // 32
 
     compact_mosaic << <blocksPerGrid, threadsPerBlock >> > (d_mosaic_value, d_mosaic_sum, d_global_pixel_sum, CHANNELS);
+
+    int blocks = (cuda_TILES_X * cuda_TILES_Y) / TILE_SIZE;
+    dim3 blocksPerGrid2(blocks, 1, 1);
+    calculate_global_sum << <blocksPerGrid2, threadsPerBlock, TILE_SIZE * CHANNELS * sizeof(unsigned long long) >> > (d_mosaic_value, d_global_pixel_sum);
     /* wait for all threads to complete */
     //cudaThreadSynchronize();
     cudaDeviceSynchronize();
+
+    //printf("total_pixels / TILE_SIZE %d\n", total_pixels / TILE_SIZE);
+    //printf("(cuda_TILES_X * cuda_TILES_Y) / TILE_SIZE %d\n", (cuda_TILES_X * cuda_TILES_Y) / TILE_SIZE);
+    
     unsigned long long* h_global_pixel_sum;
     unsigned int size = CHANNELS * sizeof(unsigned long long);
     /* allocate the host memory */
@@ -209,7 +262,7 @@ void cuda_stage2(unsigned char* output_global_average) {
     // (Ensure that data copy is carried out within the ifdef VALIDATION so that it doesn't affect your benchmark results!)
     h_mosaic_value = (unsigned char*)malloc(cuda_TILES_X * cuda_TILES_Y * CHANNELS * sizeof(unsigned char));
     cudaMemcpy(h_mosaic_value, d_mosaic_value, cuda_TILES_X * cuda_TILES_Y * CHANNELS * sizeof(unsigned char), cudaMemcpyDeviceToHost);
-    //validate_compact_mosaic(cuda_TILES_X, cuda_TILES_Y, h_mosaic_sum, h_mosaic_value, output_global_average);
+    validate_compact_mosaic(cuda_TILES_X, cuda_TILES_Y, h_mosaic_sum, h_mosaic_value, output_global_average);
 #endif    
 }
 
