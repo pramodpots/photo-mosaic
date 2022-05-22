@@ -139,6 +139,36 @@ __global__ void tile_sum_CUDA(unsigned char* d_input_image_data, unsigned long l
     //}
 }
 
+__global__ void tile_sum_CUDA_shuffle(unsigned char* d_input_image_data, unsigned long long* d_mosaic_sum) {
+    unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
+    unsigned int global_idx = x + y * blockDim.x * gridDim.x;
+    unsigned long long gbl_pixel_idx = global_idx * CHANNELS;
+
+    unsigned int local_idx = threadIdx.x + threadIdx.y * blockDim.x;
+    unsigned long long lo_pixel_idx = local_idx * CHANNELS;
+
+    unsigned int tile_index = (blockIdx.y * gridDim.x + blockIdx.x) * CHANNELS;
+
+    unsigned long long r = d_input_image_data[gbl_pixel_idx + 0];
+    unsigned long long g = d_input_image_data[gbl_pixel_idx + 1];
+    unsigned long long b = d_input_image_data[gbl_pixel_idx + 2];
+   
+    // shuffle down
+    for (int offset = 16; offset > 0; offset >>= 1) {
+        r += __shfl_down(r, offset);
+        g += __shfl_down(g, offset);
+        b += __shfl_down(b, offset);
+    }
+
+    // write result if first thread in warp (every 32nd thread)
+    if (threadIdx.x == 0) {
+        atomicAdd(&d_mosaic_sum[tile_index + 0], r);
+        atomicAdd(&d_mosaic_sum[tile_index + 1], g);
+        atomicAdd(&d_mosaic_sum[tile_index + 2], b);
+    }
+}
+
 void cuda_stage1() {
     dim3 blocksPerGrid(cuda_TILES_X, cuda_TILES_Y);
     dim3 threadsPerBlock(TILE_SIZE, TILE_SIZE);  // 32 x 32
@@ -146,8 +176,8 @@ void cuda_stage1() {
 
     //print_device_arch();
 
-    tile_sum_CUDA <<<blocksPerGrid, threadsPerBlock, sizeof(unsigned long long) * TILE_SIZE * TILE_SIZE * CHANNELS >>>(d_input_image_data, d_mosaic_sum, cuda_TILES_X, cuda_TILES_Y, cuda_input_image_width, cuda_input_image_height, cuda_input_image_channels);
-    
+    //tile_sum_CUDA <<<blocksPerGrid, threadsPerBlock, sizeof(unsigned long long) * TILE_SIZE * TILE_SIZE * CHANNELS >>>(d_input_image_data, d_mosaic_sum, cuda_TILES_X, cuda_TILES_Y, cuda_input_image_width, cuda_input_image_height, cuda_input_image_channels);
+    tile_sum_CUDA_shuffle << <blocksPerGrid, threadsPerBlock>> > (d_input_image_data, d_mosaic_sum);
     //tile_sum_CUDA << <blocksPerGrid, threadsPerBlock>> > (d_input_image_data, d_mosaic_sum, cuda_TILES_X, cuda_TILES_Y, cuda_input_image_width, cuda_input_image_height, cuda_input_image_channels);
 
     /* wait for all threads to complete */
@@ -299,6 +329,7 @@ void cuda_stage2(unsigned char* output_global_average) {
     unsigned int size = CHANNELS * sizeof(unsigned long long);
     h_global_pixel_sum = (unsigned long long*)malloc(size);
     cudaMemcpy(h_global_pixel_sum, d_global_pixel_sum, size, cudaMemcpyDeviceToHost);
+    //cudaMemcpyAsync(h_global_pixel_sum, d_global_pixel_sum, size, cudaMemcpyDeviceToHost);
     
     //output_global_average[0] = (unsigned char)(h_global_pixel_sum[0] / (cuda_TILES_X * cuda_TILES_Y));
     //output_global_average[1] = (unsigned char)(h_global_pixel_sum[1] / (cuda_TILES_X * cuda_TILES_Y));
