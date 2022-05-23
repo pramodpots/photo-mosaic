@@ -141,14 +141,13 @@ void cuda_stage2(unsigned char* output_global_average) {
     compact_mosaic_shuffle <<<blocksPerGrid, threadsPerBlock>>> (d_mosaic_value, d_mosaic_sum, d_global_pixel_sum);
 
     unsigned long long* h_global_pixel_sum;
-    unsigned int size = CHANNELS * sizeof(unsigned long long);
-    h_global_pixel_sum = (unsigned long long*)malloc(size);
-    cudaMemcpyAsync(h_global_pixel_sum, d_global_pixel_sum, size, cudaMemcpyDeviceToHost);
+    cudaMallocHost((unsigned long long**)&h_global_pixel_sum, sizeof(unsigned long long) * CHANNELS);
+    cudaMemcpy(h_global_pixel_sum, d_global_pixel_sum, sizeof(unsigned long long) * CHANNELS, cudaMemcpyDeviceToHost);
     
     for (int ch = 0; ch < CHANNELS; ++ch) {
         output_global_average[ch] = (unsigned char)(h_global_pixel_sum[ch] / (cuda_TILES_X * cuda_TILES_Y));
     }
-    free(h_global_pixel_sum);
+    cudaFreeHost(h_global_pixel_sum);
 
 #ifdef VALIDATION
     // TODO: Uncomment and call the validation functions with the correct inputs
