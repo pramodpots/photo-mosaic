@@ -18,8 +18,7 @@ void openmp_begin(const Image *input_image) {
 
     // Allocate buffer for calculating the sum of each tile mosaic
     omp_mosaic_sum = (unsigned long long*)malloc(omp_TILES_X * omp_TILES_Y * input_image->channels * sizeof(unsigned long long));
-    // Set values initially to 0
-    memset(omp_mosaic_sum, 0, omp_TILES_X * omp_TILES_Y * input_image->channels * sizeof(unsigned long long));
+
     // Allocate buffer for storing the output pixel value of each tile
     omp_mosaic_value = (unsigned char*)malloc(omp_TILES_X * omp_TILES_Y * input_image->channels * sizeof(unsigned char));
     
@@ -33,19 +32,23 @@ void openmp_begin(const Image *input_image) {
     omp_output_image.data = (unsigned char *)malloc(input_image->width * input_image->height * input_image->channels * sizeof(unsigned char));
 }
 void openmp_stage1() {
+    // Sum pixel data within each tile
+    // Reset sum memory to 0
+    memset(omp_mosaic_sum, 0, omp_TILES_X * omp_TILES_Y * CHANNELS * sizeof(unsigned long long));
     // declare required variables
     int t_x, t_y, p_x, p_y, tile_index, tile_offset, pixel_offset;
+    // For each tile
     #pragma omp parallel for shared(omp_mosaic_sum) private(t_x, t_y, p_x, p_y, tile_index, tile_offset, pixel_offset)
     for (t_y = 0; t_y < omp_TILES_Y; ++t_y) {
         for (t_x = 0; t_x < omp_TILES_X; ++t_x) {
-        
-            tile_index = (t_y * omp_TILES_X + t_x) * omp_input_image.channels;
-            tile_offset = (t_y * omp_TILES_X * TILE_SIZE * TILE_SIZE + t_x * TILE_SIZE) * omp_input_image.channels;
+            // calculate tile index 
+            tile_index = (t_y * omp_TILES_X + t_x) * CHANNELS;
+            tile_offset = (t_y * omp_TILES_X * TILE_SIZE * TILE_SIZE + t_x * TILE_SIZE) * CHANNELS;
+            // For each pixel in single tile
             for (p_y = 0; p_y < TILE_SIZE; ++p_y) {
                 for (p_x = 0; p_x < TILE_SIZE; ++p_x) {
-                
+                    pixel_offset = (p_y * omp_input_image.width + p_x) * CHANNELS;
                     // For each colour channel
-                    pixel_offset = (p_y * omp_input_image.width + p_x) * omp_input_image.channels;
                     // loop unrolling 
                     omp_mosaic_sum[tile_index + 0] += omp_input_image.data[tile_offset + pixel_offset + 0];
                     omp_mosaic_sum[tile_index + 1] += omp_input_image.data[tile_offset + pixel_offset + 1];
@@ -57,45 +60,19 @@ void openmp_stage1() {
 
 #ifdef VALIDATION
     // TODO: Uncomment and call the validation function with the correct inputs
-    validate_tile_sum(&omp_input_image, omp_mosaic_sum);
+    //validate_tile_sum(&omp_input_image, omp_mosaic_sum);
 #endif
 }
 void openmp_stage2(unsigned char* output_global_average) {
+    // Calculate the average of each tile, and sum these to produce a whole image average.
+    // declare required variables
     unsigned long long r = 0, g = 0, b = 0;
-    //int t_x, t_y, p_x, p_y, tile_index, tile_offset, pixel_offset;
-    //unsigned long long whole_image_sum[4] = { 0, 0, 0, 0 };
-    //#pragma omp parallel for  schedule(static,32) private(t_x, t_y, p_x, p_y, tile_index, tile_offset, pixel_offset)
-    //for (t_y = 0; t_y < omp_TILES_Y; ++t_y) {
-    //    for (t_x = 0; t_x < omp_TILES_X; ++t_x) {
-    //        tile_index = (t_y * omp_TILES_X + t_x) * omp_input_image.channels;
-    //        //printf("t_x,y (%d, %d) tile_index %d\n", t_x, t_y, tile_index);
-    //        for (int ch = 0; ch < omp_input_image.channels; ++ch) {
-    //            omp_mosaic_value[tile_index + ch] = (unsigned char)(omp_mosaic_sum[tile_index + ch] / TILE_PIXELS);  // Integer division is fine here
-    //            whole_image_sum[ch] += omp_mosaic_value[tile_index + ch];
-    //        }
-    //    }
-    //}
-    //for (int ch = 0; ch < omp_input_image.channels; ++ch) {
-    //    output_global_average[ch] = (unsigned char)(whole_image_sum[ch] / (omp_TILES_X * omp_TILES_Y));
-    //}
-
-    //int t;
-    //unsigned long long whole_image_sum[4] = { 0, 0, 0, 0 };
-    //#pragma omp parallel for private(t) schedule(static,32) reduction(+: r, g, b) // shared(omp_mosaic_value, omp_mosaic_sum) 
-    //for (t = 0; t < omp_TILES_X * omp_TILES_Y; ++t) {
-    //    for (int ch = 0; ch < CHANNELS; ++ch) {
-    //        omp_mosaic_value[t * CHANNELS + ch] = (unsigned char)(omp_mosaic_sum[t * CHANNELS + ch] / TILE_PIXELS);
-    //        whole_image_sum[ch] += omp_mosaic_value[t * CHANNELS + ch];
-    //    }
-    //}
-    //for (int ch = 0; ch < CHANNELS; ++ch) {
-    //    output_global_average[ch] = (unsigned char)(whole_image_sum[ch] / (omp_TILES_X * omp_TILES_Y));
-    //}
-
     int t;
-    #pragma omp parallel for private(t) schedule(static,32) reduction(+: r, g, b) // shared(omp_mosaic_value, omp_mosaic_sum) 
+    // single loop on all individual pixels
+    #pragma omp parallel for private(t) reduction(+: r, g, b)
     for (t = 0; t < omp_TILES_X * omp_TILES_Y * CHANNELS; ++t) {
         omp_mosaic_value[t] = (unsigned char)(omp_mosaic_sum[t] / TILE_PIXELS);
+        // adding to r, g, b based on pixel index mod 3 
         switch (t % 3) {
         case 0: r += omp_mosaic_value[t]; break;
         case 1: g += omp_mosaic_value[t]; break;
@@ -104,7 +81,7 @@ void openmp_stage2(unsigned char* output_global_average) {
     }
 
     // Reduce the whole image sum to whole image average for the return value
-    // loop unrolling
+    // loop unrolling for channels
     output_global_average[0] = (unsigned char)(r / (omp_TILES_X * omp_TILES_Y));
     output_global_average[1] = (unsigned char)(g / (omp_TILES_X * omp_TILES_Y));
     output_global_average[2] = (unsigned char)(b / (omp_TILES_X * omp_TILES_Y));
@@ -116,25 +93,20 @@ void openmp_stage2(unsigned char* output_global_average) {
 }
 void openmp_stage3() {
     // Broadcast the compact mosaic pixels back out to the full image size
-    // For each tile
+    // declare required variables
     int t_x, t_y, p_x, p_y, tile_index, tile_offset, pixel_offset;
+    // For each tile
     #pragma omp parallel for private(t_x, t_y, p_x, p_y, tile_index, tile_offset, pixel_offset) 
     for (t_y = 0; t_y < omp_TILES_Y; ++t_y) {
         for (t_x = 0; t_x < omp_TILES_X; ++t_x) {
-        
-            tile_index = (t_y * omp_TILES_X + t_x) * omp_input_image.channels;
-            tile_offset = (t_y * omp_TILES_X * TILE_SIZE * TILE_SIZE + t_x * TILE_SIZE) * omp_input_image.channels;
-            
+            tile_index = (t_y * omp_TILES_X + t_x) * CHANNELS;
+            tile_offset = (t_y * omp_TILES_X * TILE_SIZE * TILE_SIZE + t_x * TILE_SIZE) * CHANNELS;
             // For each pixel within the tile
             for (p_y = 0; p_y < TILE_SIZE; ++p_y) {
                 for (p_x = 0; p_x < TILE_SIZE; ++p_x) {
-                
-                    const unsigned int pixel_offset = (p_y * omp_input_image.width + p_x) * omp_input_image.channels;
+                    const unsigned int pixel_offset = (p_y * omp_input_image.width + p_x) * CHANNELS;
                     // Copy whole pixel
-                    //memcpy(omp_output_image.data + tile_offset + pixel_offset, omp_mosaic_value + tile_index, omp_input_image.channels);
-                    omp_output_image.data[tile_offset + pixel_offset + 0] = omp_mosaic_value[tile_index + 0];
-                    omp_output_image.data[tile_offset + pixel_offset + 1] = omp_mosaic_value[tile_index + 1];
-                    omp_output_image.data[tile_offset + pixel_offset + 2] = omp_mosaic_value[tile_index + 2];
+                    memcpy(omp_output_image.data + tile_offset + pixel_offset, omp_mosaic_value + tile_index, CHANNELS);
                 }
             }
         }
@@ -146,7 +118,6 @@ void openmp_stage3() {
 #endif    
 }
 void openmp_end(Image *output_image) {
-    
     // Store return value
     output_image->width = omp_output_image.width;
     output_image->height = omp_output_image.height;
