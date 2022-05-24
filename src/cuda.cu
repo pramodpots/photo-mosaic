@@ -157,19 +157,19 @@ void cuda_stage2(unsigned char* output_global_average) {
 
     // local host variable for calculating global avg
     unsigned long long* h_global_pixel_sum;
-    // allocate pinned memory
-    cudaMallocHost((unsigned long long**)&h_global_pixel_sum, sizeof(unsigned long long) * CHANNELS);
-    // copy calculated global_pixel_sum to host 
-    cudaMemcpy(h_global_pixel_sum, d_global_pixel_sum, sizeof(unsigned long long) * CHANNELS, cudaMemcpyDeviceToHost);
-    
+    h_global_pixel_sum = (unsigned long long*)malloc(sizeof(unsigned long long) * CHANNELS);
+    // copy calculated global_pixel_sum to host
+    cudaMemcpyAsync(h_global_pixel_sum, d_global_pixel_sum, sizeof(unsigned long long) * CHANNELS, cudaMemcpyDeviceToHost);
+
     // calculate and save into output_global_average
     // compiler is better at optimizing this loop as const CHANNELS used.
     // tried loop unrolling here but it degrades performance
     for (int ch = 0; ch < CHANNELS; ++ch) {
         output_global_average[ch] = (unsigned char)(h_global_pixel_sum[ch] / (cuda_TILES_X * cuda_TILES_Y));
     }
+    
     // free pinned memory
-    cudaFreeHost(h_global_pixel_sum);
+    free(h_global_pixel_sum);
 
 #ifdef VALIDATION
     // TODO: Uncomment and call the validation functions with the correct inputs
