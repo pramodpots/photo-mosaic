@@ -38,7 +38,7 @@ void cuda_begin(const Image *input_image) {
 
     // Allocate buffer for calculating the sum of each tile mosaic
     CUDA_CALL(cudaMalloc(&d_mosaic_sum, cuda_TILES_X * cuda_TILES_Y * input_image->channels * sizeof(unsigned long long)));
-
+    CUDA_CALL(cudaMemset(d_mosaic_sum, 0, cuda_TILES_X * cuda_TILES_Y * input_image->channels * sizeof(unsigned long long)));
     // Allocate buffer for storing the output pixel value of each tile
     CUDA_CALL(cudaMalloc(&d_mosaic_value, cuda_TILES_X * cuda_TILES_Y * input_image->channels * sizeof(unsigned char)));
 
@@ -57,6 +57,8 @@ void cuda_begin(const Image *input_image) {
 
     // Allocate and zero buffer for calculation global pixel average
     CUDA_CALL(cudaMalloc(&d_global_pixel_sum, input_image->channels * sizeof(unsigned long long)));
+    CUDA_CALL(cudaMemset(d_global_pixel_sum, 0, input_image->channels * sizeof(unsigned long long)));
+
 }
 
 __global__ void tile_sum_CUDA_shuffle(unsigned char* d_input_image_data, unsigned long long* d_mosaic_sum) {
