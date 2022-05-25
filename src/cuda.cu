@@ -96,7 +96,7 @@ __global__ void tile_sum_CUDA_shuffle(unsigned char* d_input_image_data, unsigne
 }
 
 void cuda_stage1() {
-    // create 2d blocks of size equal to tiles
+    // create blocks equal to number of tiles
     dim3 blocksPerGrid(cuda_TILES_X, cuda_TILES_Y);
     // threads per block 32 x 32 = 1024
     dim3 threadsPerBlock(TILE_SIZE, TILE_SIZE);
@@ -198,7 +198,7 @@ __global__ void cuda_broadcast(unsigned char* d_output_image_data, unsigned char
     int tile_index = (blockIdx.y * gridDim.x + blockIdx.x) * CHANNELS;
 
     // tile_index will be unique per block. 
-    // broadcast same values into all pixel inside block
+    // broadcast same values into all pixels inside block
     d_output_image_data[gbl_pixel_idx + 0] = d_mosaic_value[tile_index + 0];
     d_output_image_data[gbl_pixel_idx + 1] = d_mosaic_value[tile_index + 1];
     d_output_image_data[gbl_pixel_idx + 2] = d_mosaic_value[tile_index + 2];
