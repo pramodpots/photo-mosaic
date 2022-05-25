@@ -25,6 +25,7 @@ OPENMP "samples/4096x2048.jpg" "samples/4096x2048_openmp_out.png" --bench
 OPENMP "samples/8196x8196.jpg" "samples/8196x8196_openmp_out.png" --bench
 
 CUDA "samples/128x128.jpg" "samples/128x128_cuda_out.png" --bench
+CUDA "samples/128x128.jpg" "samples/128x128_cuda_out.png" --bench
 CUDA "samples/128x394.jpg" "samples/128x394_cuda_out.png" --bench
 CUDA "samples/256x256.png" "samples/256x256_cuda_out.png" --bench
 CUDA "samples/1024x1024.png" "samples/1024x1024_cuda_out.png" --bench
@@ -36,3 +37,20 @@ CUDA "samples/8196x8196.jpg" "samples/8196x8196_cuda_out.png" --bench
 
 
 OPENMP "U:\pramodpots\COM6521\photo-mosaic\x64\samples\4096x4096.jpg" "U:\pramodpots\COM6521\photo-mosaic\x64\samples\4096x4096_cuda_out.png"
+
+
+OPENMP "samples/64x64.jpg" "samples/64x64_out.png" --bench
+OPENMP "samples/79x91.jpg" "samples/79x91_out.png" --bench
+OPENMP "samples/3096x5000.jpg" "samples/3096x5000_out.png" --bench
+OPENMP "samples/2345x5678.jpg" "samples/2345x5678_out.png" --bench
+OPENMP "samples/6879x2974.jpg" "samples/6879x2974_out.png" --bench
+OPENMP "samples/69x4096.jpg" "samples/69x4096_out.png" --bench
+OPENMP "samples/4096x69.jpg" "samples/4096x69_out.png" --bench
+
+CUDA "samples/64x64.jpg" "samples/64x64_cuout.png" --bench
+CUDA "samples/79x91.jpg" "samples/79x91_cuout.png" --bench
+CUDA "samples/3096x5000.jpg" "samples/3096x5000_cuout.png" --bench
+CUDA "samples/2345x5678.jpg" "samples/2345x5678_cuout.png" --bench
+CUDA "samples/6879x2974.jpg" "samples/6879x2974_cuout.png" --bench
+CUDA "samples/69x4096.jpg" "samples/69x4096_cuda_out.png" --bench
+CUDA "samples/4096x69.jpg" "samples/4096x69_cuda_out.png" --bench

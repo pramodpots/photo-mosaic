@@ -64,7 +64,6 @@ void openmp_stage1() {
 #endif
 }
 void openmp_stage2(unsigned char* output_global_average) {
-    printf("omp_TILES_X omp_TILES_Y (%d, %d)", omp_TILES_X, omp_TILES_Y);
     // Calculate the average of each tile, and sum these to produce a whole image average.
     // declare required variables
     unsigned long long r = 0, g = 0, b = 0;
