@@ -18,9 +18,11 @@ Image cuda_input_image;
 unsigned int cuda_TILES_X, cuda_TILES_Y;
 // Pointer to device buffer for calculating the sum of each tile mosaic, this must be passed to a kernel to be used on device
 unsigned long long* d_mosaic_sum;
+unsigned long long* h_mosaic_sum;
 // unsigned long long* h_mosaic_sum;
 // Pointer to device buffer for storing the output pixels of each tile, this must be passed to a kernel to be used on device
 unsigned char* d_mosaic_value;
+unsigned char* h_mosaic_value;
 // unsigned char* h_mosaic_value;
 // Pointer to device image data buffer, for storing the input image, this must be passed to a kernel to be used on device
 unsigned char* d_input_image_data;
@@ -108,18 +110,21 @@ void cuda_stage1() {
     // TODO: Uncomment and call the validation function with the correct inputs
     // You will need to copy the data back to host before passing to these functions
     // (Ensure that data copy is carried out within the ifdef VALIDATION so that it doesn't affect your benchmark results!)
-    // h_mosaic_sum = (unsigned long long*)malloc(cuda_TILES_X * cuda_TILES_Y * cuda_input_image_channels * sizeof(unsigned long long));
-    // cudaMemcpy(h_mosaic_sum, d_mosaic_sum, cuda_TILES_X * cuda_TILES_Y * cuda_input_image_channels * sizeof(unsigned long long), cudaMemcpyDeviceToHost);
-    // validate_tile_sum(&cuda_input_image, h_mosaic_sum);
+     h_mosaic_sum = (unsigned long long*)malloc(cuda_TILES_X * cuda_TILES_Y * CHANNELS * sizeof(unsigned long long));
+     cudaMemcpy(h_mosaic_sum, d_mosaic_sum, cuda_TILES_X * cuda_TILES_Y * CHANNELS * sizeof(unsigned long long), cudaMemcpyDeviceToHost);
+     validate_tile_sum(&cuda_input_image, h_mosaic_sum);
 #endif
 }
 
-__global__ void compact_mosaic_shuffle(unsigned char* d_mosaic_value, unsigned long long* d_mosaic_sum, unsigned long long* d_global_pixel_sum) {
+__global__ void compact_mosaic_shuffle(unsigned char* d_mosaic_value, unsigned long long* d_mosaic_sum, unsigned long long* d_global_pixel_sum, unsigned int tiles) {
     // Calculate the average of each tile, and sum these to produce a whole image average.
 
     int idx = threadIdx.x;
     int offset_idx = threadIdx.x + blockIdx.x * blockDim.x;
-
+    // early return
+    if (offset_idx >= tiles)
+        return;
+    //printf("threadIdx.x %d blockIdx.x %d blockDim.x %d offset_idx %d\n", threadIdx.x, blockIdx.x , blockDim.x, offset_idx);
     // calculate and load values into d_mosaic_value
     d_mosaic_value[offset_idx * CHANNELS + 0] = (unsigned char)(d_mosaic_sum[offset_idx * CHANNELS + 0] / TILE_PIXELS);
     d_mosaic_value[offset_idx * CHANNELS + 1] = (unsigned char)(d_mosaic_sum[offset_idx * CHANNELS + 1] / TILE_PIXELS);
@@ -150,12 +155,13 @@ __global__ void compact_mosaic_shuffle(unsigned char* d_mosaic_value, unsigned l
 }
 
 void cuda_stage2(unsigned char* output_global_average) {
-    int compact_mosaic_pixels = cuda_TILES_X * cuda_TILES_Y * CHANNELS;
+    int tiles = cuda_TILES_X * cuda_TILES_Y;
+    //printf("cuda_TILES_X cuda_TILES_Y (%d, %d)", cuda_TILES_X, cuda_TILES_Y);
     // create 1D blocks
-    dim3 blocksPerGrid((cuda_TILES_X * cuda_TILES_Y) / TILE_SIZE, 1, 1);
+    dim3 blocksPerGrid((unsigned int)ceil((cuda_TILES_X * cuda_TILES_Y) / (double)TILE_SIZE), 1, 1);
     dim3 threadsPerBlock(TILE_SIZE, 1, 1);
     // kernel call
-    compact_mosaic_shuffle <<<blocksPerGrid, threadsPerBlock>>> (d_mosaic_value, d_mosaic_sum, d_global_pixel_sum);
+    compact_mosaic_shuffle <<<blocksPerGrid, threadsPerBlock>>> (d_mosaic_value, d_mosaic_sum, d_global_pixel_sum, tiles);
 
     // local host variable for calculating global avg
     unsigned long long* h_global_pixel_sum;
@@ -177,9 +183,9 @@ void cuda_stage2(unsigned char* output_global_average) {
     // TODO: Uncomment and call the validation functions with the correct inputs
     // You will need to copy the data back to host before passing to these functions
     // (Ensure that data copy is carried out within the ifdef VALIDATION so that it doesn't affect your benchmark results!)
-    // h_mosaic_value = (unsigned char*)malloc(cuda_TILES_X * cuda_TILES_Y * CHANNELS * sizeof(unsigned char));
-    // cudaMemcpy(h_mosaic_value, d_mosaic_value, cuda_TILES_X * cuda_TILES_Y * CHANNELS * sizeof(unsigned char), cudaMemcpyDeviceToHost);
-    // validate_compact_mosaic(cuda_TILES_X, cuda_TILES_Y, h_mosaic_sum, h_mosaic_value, output_global_average);
+     h_mosaic_value = (unsigned char*)malloc(cuda_TILES_X * cuda_TILES_Y * CHANNELS * sizeof(unsigned char));
+     cudaMemcpy(h_mosaic_value, d_mosaic_value, cuda_TILES_X * cuda_TILES_Y * CHANNELS * sizeof(unsigned char), cudaMemcpyDeviceToHost);
+     validate_compact_mosaic(cuda_TILES_X, cuda_TILES_Y, h_mosaic_sum, h_mosaic_value, output_global_average);
 #endif    
 }
 
