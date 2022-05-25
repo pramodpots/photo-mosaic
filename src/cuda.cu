@@ -166,8 +166,7 @@ void cuda_stage2(unsigned char* output_global_average) {
     unsigned long long* h_global_pixel_sum;
     h_global_pixel_sum = (unsigned long long*)malloc(sizeof(unsigned long long) * CHANNELS);
     // copy calculated global_pixel_sum to host
-    cudaMemcpyAsync(h_global_pixel_sum, d_global_pixel_sum, sizeof(unsigned long long) * CHANNELS, cudaMemcpyDeviceToHost);
-
+    cudaMemcpy(h_global_pixel_sum, d_global_pixel_sum, sizeof(unsigned long long) * CHANNELS, cudaMemcpyDeviceToHost);
     // calculate and save into output_global_average
     // compiler is better at optimizing this loop as const CHANNELS used.
     // tried loop unrolling here but it degrades performance
